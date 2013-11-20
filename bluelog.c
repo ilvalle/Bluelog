@@ -37,6 +37,7 @@
 
 #define VERSION	"1.0.5-RC1"
 #define APPNAME "Bluelog"
+#define VALIDITY_SECONDS  1800  // this defines the number of seconds between the log of the same mac 
 
 #include <string.h>
 #include <sqlite3.h>
@@ -66,7 +67,6 @@
 struct btdev {
 	char name[248];
 	char addr[18];
-	char priv_addr[18];
 	char time[20];
 	uint8_t flags;
 	uint8_t major_class;
@@ -314,7 +314,6 @@ int main(int argc, char *argv[]) {
 	#else
 	int scan_time = 3;
 	#endif
-	#ifdef SQLITE
 	/* Database variables */
 	sqlite3 *db;
 	sqlite3_stmt * stmt;
@@ -326,7 +325,7 @@ int main(int argc, char *argv[]) {
 	char * sSQL = 0;
 	char * qSQL = 0;
 	char * db_name = 0;
-	#endif
+
 	// Maximum number of devices per scan
 	int max_results = 255;
 	int num_results;
@@ -352,6 +351,7 @@ int main(int argc, char *argv[]) {
 	int daemon = 0;
 	int bluepropro = 0;
 	int getname = 0;
+	int log2file = 0;
 		
 	// Change default filename based on date
 	char OUT_FILE[1000] = OUT_PATH;
@@ -374,9 +374,8 @@ int main(int argc, char *argv[]) {
 	struct utsname sysinfo;
 	uname(&sysinfo);
 	
-	while ((opt=getopt_long(argc,argv,"+o:i:r:a:w:vxcthldbfnksq", main_options, NULL)) != EOF) {
-		switch (opt) {
-  
+	while ((opt=getopt_long(argc,argv,"+o:i:r:a:w:pvxcthldbfnksq", main_options, NULL)) != EOF) {
+		switch (opt) {  
 		    case 'i':
 			    if (!strncasecmp(optarg, "hci", 3))
 				    hci_devba(atoi(optarg + 3), &bdaddr);
@@ -385,6 +384,9 @@ int main(int argc, char *argv[]) {
 			    break;
 		    case 'o':
 			    outfilename = strdup(optarg);
+			    break;
+		    case 'p':
+		        log2file = 1;    // Preserve the common .log file
 			    break;
 		    case 'w':
 			    scan_time =  atoi(optarg);
@@ -525,66 +527,54 @@ int main(int argc, char *argv[]) {
 			printf("Output formatted for BlueProPro.\n"
 				   "More Info: www.hackfromacave.com\n");
 	
-	// Open output file
-	if (!syslogonly)
-	{
-		if (!quiet)		
-			printf("Opening output file: %s...", outfilename);
-		if ((outfile = fopen(outfilename, filemode)) == NULL)
-		{
-			printf("\n");
-			printf("Error opening output file!\n");
-			exit(1);
-		}
-		/* Open and manage SQLITE database */
-		db_name = malloc(snprintf(NULL, 0, "%s.db", outfilename) + 1);
-		sprintf(db_name, "%s.db", outfilename);
-		sqlite3_open(db_name, &db);
-		if (!quiet)		
-			printf("Opening sqlite db: %s...\n", db_name);
-		free(db_name);
-		sqlite3_exec(db, TABLE, NULL, NULL, &zErrMsg);
-		sqlite3_exec(db, TABLE_EVENT, NULL, NULL, &zErrMsg);
-		sqlite3_exec(db, INDEX_MAC, NULL, NULL, &zErrMsg);
-        sqlite3_exec(db, INDEX_DATE, NULL, NULL, &zErrMsg);
-		sqlite3_exec(db, "PRAGMA synchronous = OFF", NULL, NULL, &zErrMsg);
-		rc = sqlite3_exec(db, "PRAGMA journal_mode = MEMORY", NULL, NULL, &zErrMsg);
-	 	if( rc ){
-			fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
-			sqlite3_close(db);
-			exit(1);
-		}
-		/* Log start time and parameters */
-		sSQL = malloc( 200 );
-		sprintf(sSQL, "INSERT INTO session VALUES (NULL, '%d', '%s')", scan_time, get_localtime(0) );
-		sqlite3_exec(db, sSQL, NULL, NULL, &zErrMsg);
-		session_id = sqlite3_last_insert_rowid(db);
-		sprintf(sSQL, "INSERT INTO record VALUES (NULL, '%ld', @sMAC, @sDATE)", session_id);
-		//sSQL = "INSERT INTO records VALUES (NULL, @sMAC, @sDATE)";
-		rc = sqlite3_prepare_v2(db, sSQL, strlen(sSQL), &stmt, &tail);
-		if (rc) {
-			fprintf(stderr, "Can't prepare query: %s\n", sqlite3_errmsg(db));
-			sqlite3_close(db);
-			exit(1);
-		}
-		qSQL = "SELECT COUNT(*) FROM record WHERE mac = @sMAC and gathered_on > @sDATE";
-		rc = sqlite3_prepare_v2(db, qSQL, strlen(qSQL), &query, NULL);
-		if (rc) {
-			fprintf(stderr, "Can't prepare query: %s\n", sqlite3_errmsg(db));
-			sqlite3_close(db);
-			exit(1);
-		}
-		
-		printf("Sqlite statement ready\n");
-
-		if (!quiet)
-			printf("OK\n");
+	if (log2file){
+   		if (!quiet)		
+    		printf("Opening output file: %s...", outfilename);
+    	if ((outfile = fopen(outfilename, filemode)) == NULL) {
+   			printf("\n");
+   			printf("Error opening output file!\n");
+   			exit(1);
+   		}
+   	}
+	/* Open and manage SQLITE database */
+	db_name = malloc(snprintf(NULL, 0, "%s.db", outfilename) + 1);
+	sprintf(db_name, "%s.db", outfilename);
+	sqlite3_open(db_name, &db);
+	if (!quiet)		
+		printf("Opening sqlite db: %s...\n", db_name);
+	free(db_name);
+	sqlite3_exec(db, TABLE, NULL, NULL, &zErrMsg);
+	sqlite3_exec(db, TABLE_EVENT, NULL, NULL, &zErrMsg);
+	sqlite3_exec(db, INDEX_MAC, NULL, NULL, &zErrMsg);
+    sqlite3_exec(db, INDEX_DATE, NULL, NULL, &zErrMsg);
+	sqlite3_exec(db, "PRAGMA synchronous = OFF", NULL, NULL, &zErrMsg);
+	rc = sqlite3_exec(db, "PRAGMA journal_mode = MEMORY", NULL, NULL, &zErrMsg);
+ 	if( rc ){
+		fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
+		sqlite3_close(db);
+		exit(1);
 	}
-	else
-	{
-		if (!quiet)
-			printf("In syslog mode, log file disabled.\n");
+	/* Log start time and parameters */
+	sSQL = malloc( 200 );
+	sprintf(sSQL, "INSERT INTO session VALUES (NULL, '%d', '%s')", scan_time, get_localtime(0) );
+	sqlite3_exec(db, sSQL, NULL, NULL, &zErrMsg);
+	session_id = sqlite3_last_insert_rowid(db);
+	sprintf(sSQL, "INSERT INTO record VALUES (NULL, '%ld', @sMAC, @sDATE)", session_id);
+	//sSQL = "INSERT INTO records VALUES (NULL, @sMAC, @sDATE)";
+	rc = sqlite3_prepare_v2(db, sSQL, strlen(sSQL), &stmt, &tail);
+	if (rc) {
+		fprintf(stderr, "Can't prepare query: %s\n", sqlite3_errmsg(db));
+		sqlite3_close(db);
+		exit(1);
 	}
+	qSQL = "SELECT COUNT(*) FROM record WHERE mac = @sMAC and gathered_on > @sDATE";
+	rc = sqlite3_prepare_v2(db, qSQL, strlen(qSQL), &query, NULL);
+	if (rc) {
+		fprintf(stderr, "Can't prepare query: %s\n", sqlite3_errmsg(db));
+		sqlite3_close(db);
+		exit(1);
+	}
+	printf("Sqlite statement ready\n");
 	
 	// Write PID file
 	if (!daemon)
@@ -680,7 +670,7 @@ int main(int argc, char *argv[]) {
 			// Return current MAC from struct
 			ba2str(&(results+i)->bdaddr, addr);
             sqlite3_bind_text(query, 1, addr, strlen(addr), SQLITE_STATIC);
-       		sqlite3_bind_text(query, 2, get_localtime(20), -1, SQLITE_STATIC);    // 30minutes = 1800seconds
+       		sqlite3_bind_text(query, 2, get_localtime(VALIDITY_SECONDS), -1, SQLITE_STATIC);    // 30minutes = 1800seconds
        		int s = sqlite3_step(query);
        		if (s != SQLITE_ROW) {
        		    printf("Unexpected response from sqlite3_step(query)");
@@ -725,9 +715,6 @@ int main(int argc, char *argv[]) {
 				
 			// Obfuscate MAC
 			if (obfuscate) {
-				// Preserve real MAC
-				strcpy(new_device.priv_addr, new_device.addr);
-
 				// Split out OUI, replace device with XX
 				strncpy(addr_buff, new_device.addr, 9);
 				strcat(addr_buff, "XX:XX:XX");
@@ -755,7 +742,7 @@ int main(int argc, char *argv[]) {
 				fprintf(outfile,",0x%02x%02x%02x", new_device.flags,\
 				new_device.major_class, new_device.minor_class);
 				fprintf(outfile,",%s\n", new_device.name);
-			} else {
+			} else if (log2file) {    // Log in a text file
 				// Flush buffer
 				memset(outbuffer, 0, sizeof(outbuffer));
 				
@@ -788,7 +775,6 @@ int main(int argc, char *argv[]) {
 					fprintf(outfile,"%s\n",outbuffer);
 			}
 
-			#ifdef SQLITE
 			sqlite3_bind_text(stmt, 1, new_device.addr, -1, SQLITE_TRANSIENT);
 			sqlite3_bind_text(stmt, 2, new_device.time, -1, SQLITE_STATIC); 
 			// run the insert
@@ -796,15 +782,13 @@ int main(int argc, char *argv[]) {
 			// Clear stmt for the next insert
 			sqlite3_clear_bindings(stmt);
 			sqlite3_reset(stmt);
-			#endif
-			// Write any new changes
-			if (!syslogonly)
-				fflush(outfile);
-			
+
+			if (!syslogonly || bluepropro || log2file) {
+				fflush(outfile);    			// Write any new changes
+			}
 		} // for to parse results 
-		#ifdef SQLITE
+
 		sqlite3_exec(db, "END TRANSACTION", NULL, NULL, &zErrMsg);
-		#endif
 
 	}// for seamless
 	// Clear out results buffer
