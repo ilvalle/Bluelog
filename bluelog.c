@@ -482,6 +482,10 @@ int main(int argc, char *argv[]) {
 		bluepropro = 0;
 	}
 
+    if (!log2file) {
+        showtime = 0;
+    }
+
 	// Boilerplate
 	if (!quiet)
 	{
