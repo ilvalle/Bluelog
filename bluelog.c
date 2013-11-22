@@ -574,7 +574,7 @@ int main(int argc, char *argv[]) {
 		sqlite3_close(db);
 		exit(1);
 	}
-	printf("Sqlite statement ready\n");
+	//printf("Sqlite statement ready\n");
 	
 	// Write PID file
 	if (!daemon)
@@ -681,10 +681,10 @@ int main(int argc, char *argv[]) {
             sqlite3_reset(query);
 
             if (n_element != 0) {
-                printf("%s already logged (%d)\n", addr, n_element);
+                //printf("%s already logged (%d)\n", addr, n_element);
                 break;
             }
-            printf("%s) logging (%s)\n", get_localtime(0), addr);
+            //printf("%s) logging (%s)\n", get_localtime(0), addr);
             // Log the new device
 			memset(&new_device, 0, sizeof(new_device));
 			// Write new device 

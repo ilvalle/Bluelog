@@ -36,7 +36,7 @@ with con:
 		exit(1)
 	left_date = datetime.fromtimestamp( int(r.text)/1000 )
 	#print 'date', left_date
-	print left_date.strftime('%m/%d/%y %H:%M:%S')
+	#print left_date.strftime('%m/%d/%y %H:%M:%S')
 	# Query the local db to retrive the last records
 	#print 'Date ', left_date
 	cur.execute("SELECT * FROM record WHERE gathered_on > :left_date", {'left_date': left_date.strftime('%m/%d/%y %H:%M:%S')})
@@ -47,6 +47,7 @@ with con:
 	# Make a POST to send the last record
 	headers = {'Content-type': 'application/json', 'Accept': 'text/plain'}
 	r = requests.post( url_post, data=json.dumps(values), headers=headers )
+	left_date = datetime.now() - timedelta(minutes=60)
 	if r.status_code == 200:
 		cur.execute("DELETE FROM record WHERE gathered_on < :left_date", {'left_date': left_date.strftime('%m/%d/%y %H:%M:%S')})
 
