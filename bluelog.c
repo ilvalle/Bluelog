@@ -81,7 +81,8 @@ int bt_socket; // HCI device
 int showtime = 0; // Show timestamps in log		
 int syslogonly = 0; // Log file enabled
 int quiet = 0; // Print output normally
-			
+int log2file = 0; // True if log file is used to dump results
+				
 struct btdev new_device; 
 
 char* get_localtime(int diff_seconds)
@@ -132,12 +133,12 @@ void shut_down(int sig)
 		fprintf(outfile,"[%s] Scan ended.\n", get_localtime(0));
 	
 	// Don't try to close a file that doesn't exist, kernel gets mad
-	if (!syslogonly) {
+    if (log2file){
 		fclose(outfile);
-		#ifdef SQLITE
-		sqlite3_close(db);
-		#endif
 	}
+
+	sqlite3_close(db);
+
 	free(results);
 	//free(dev_cache);
 	close(bt_socket);
@@ -351,7 +352,7 @@ int main(int argc, char *argv[]) {
 	int daemon = 0;
 	int bluepropro = 0;
 	int getname = 0;
-	int log2file = 0;
+
 		
 	// Change default filename based on date
 	char OUT_FILE[1000] = OUT_PATH;
@@ -791,8 +792,7 @@ int main(int argc, char *argv[]) {
 		sqlite3_exec(db, "END TRANSACTION", NULL, NULL, &zErrMsg);
 
 	}// for seamless
-	// Clear out results buffer
-	free(results);
+
 	// If we get here, shut down
 	shut_down(0);
 	// STFU
