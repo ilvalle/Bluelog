@@ -96,7 +96,7 @@ char* get_localtime(int diff_seconds)
 	now = time (0);
 	diff= now - diff_seconds; 
 	timeinfo = localtime(&diff);
-	strftime(time_string,20,"%D %T",timeinfo);
+	strftime(time_string,20,"%F %T",timeinfo);
 	
 	// Send it back
 	return(time_string);
