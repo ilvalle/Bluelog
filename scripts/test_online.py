@@ -18,7 +18,7 @@ if os.path.isfile(fname):
             output = process.communicate()[0]
 
 try:
-    r = requests.head('http://www.google.it', timeout=0.01)
+    r = requests.head('http://www.google.it', timeout=5)
     if r.status_code == 200:
         with open(fname, 'w') as f:
             f.write("%s" % datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))        
