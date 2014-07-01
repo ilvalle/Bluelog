@@ -8,10 +8,12 @@ import requests
 from datetime import datetime, timedelta
 from dateutil.tz import tzlocal
 import json
+import socket
 
 url_get  = "http://ds.integreen-life.bz.it/odds/json"
 url_post = "http://ds.integreen-life.bz.it/odds/json"
-station_id = 15
+
+stationcode = socket.gethostname()
 log_date_format = '%Y-%m-%d %H:%M:%S'
 
 if len(sys.argv) != 2: 
@@ -31,24 +33,26 @@ with con:
 	cur.execute("PRAGMA synchronous = OFF")
 
 	# Make a GET to request the last record stored so far
-	url_vars = {'station-id':station_id}
+	url_vars = {'station-id':stationcode}
 	r = requests.get(url_get, params=url_vars)
 	if r.status_code != 200:
+		print 'exit'
 		exit(1)
 	left_date = datetime.fromtimestamp( int(r.text)/1000 )
-	#print 'date', left_date
+	print 'date', left_date
 	#print left_date.strftime('%m/%d/%y %H:%M:%S')
 	# Query the local db to retrive the last records
 	#print 'Date ', left_date
 	cur.execute("SELECT * FROM record WHERE gathered_on > :left_date", {'left_date': left_date.strftime(log_date_format)})
 	rows = cur.fetchall()
 	timezone=datetime.now(tzlocal()).strftime('%z')
-	values = [ {'station_id': station_id, "local_id":row['id'], 'mac':row['mac'], 'gathered_on': datetime.strptime(row['gathered_on'],log_date_format).strftime('%Y-%m-%dT%H:%M:%S.000' + '%s' % timezone) } for row in rows]
-	#print len(values), values[-1]
+	values = [ {'stationcode': stationcode, "local_id":row['id'], 'mac':row['mac'], 'gathered_on': datetime.strptime(row['gathered_on'],log_date_format).strftime('%Y-%m-%dT%H:%M:%S.000' + '%s' % timezone) } for row in rows]
+	print len(values) #, values[-1]
 	# Make a POST to send the last record
 	headers = {'Content-type': 'application/json', 'Accept': 'text/plain'}
 	r = requests.post( url_post, data=json.dumps(values), headers=headers )
 	left_date = datetime.now() - timedelta(minutes=60)
 	if r.status_code == 200:
 		cur.execute("DELETE FROM record WHERE gathered_on < :left_date", {'left_date': left_date.strftime(log_date_format)})
-
+	else:
+		print r.text
